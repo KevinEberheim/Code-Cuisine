@@ -1,0 +1,99 @@
+.start {
+    min-height: 100vh;
+    background-color: var(--olive-green);
+    color: var(--cremy);
+}
+
+.content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-width: 1440px;
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: 40px 0 64px 64px;
+    overflow: hidden;
+
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 40px;
+        width: 480px;
+        height: 100%;
+        background: url('/img/hero.png') no-repeat;
+        background-size: cover;
+        background-position: center;
+        pointer-events: none;
+    }
+
+    @media (min-height: 1025px) {
+        &::before {
+            background: url('/img/hero-tall.png') no-repeat;
+            background-size: cover;
+            background-position: center;
+        }
+    }
+}
+
+header {
+    margin-bottom: 167px;
+}
+
+main {
+  margin-bottom: auto;
+}
+
+header,
+main,
+footer {
+    position: relative;
+    z-index: 1;
+}
+
+.subtitle {
+    font: 600 48px 'Quicksand', sans-serif;
+}
+
+h1 {
+    font: 700 104px 'Ubuntu', sans-serif;
+    margin-bottom: 64px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 16px 24px;
+    font: 600 24px 'Quicksand', sans-serif;
+    text-decoration: none;
+    background: var(--cremy);
+    color: var(--btn-text);
+    transition: transform 0.2s ease;
+
+    &:hover {
+        transform: scale(1.05);
+    }
+}
+
+footer {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    margin-top: 303px;
+}
+
+.cookbook {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 500 20px 'Quicksand', sans-serif;
+    color: var(--cremy);
+    text-decoration: none;
+
+    img {
+        transition: transform 0.2s ease;
+    }
+
+    &:hover img {
+        transform: translateX(6px);
+    }
+}
