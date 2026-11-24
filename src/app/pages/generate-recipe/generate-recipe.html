@@ -1,0 +1,79 @@
+<header>
+    <app-logo variant="dark" />
+</header>
+
+<main>
+    <h1>Generate recipe</h1>
+    <p class="intro">
+        Got random stuff in your kitchen? Pop it in—we’ve got the perfect recipe waiting.
+    </p>
+
+    <div class="workspace">
+        <div class="panels">
+            <form class="panel add" (ngSubmit)="add()">
+                <div class="field">
+                    <label for="ingredient">Ingredient</label>
+                    <input #nameInput id="ingredient" class="pill" name="ingredient" type="text" autocomplete="off"
+                        [ngModel]="name()" (ngModelChange)="onNameChange($event); nameInput.value = name()" />
+                    @if (suggestions().length > 0) {
+                    <ul class="suggestions">
+                        @for (suggestion of suggestions(); track suggestion) {
+                        <li>
+                            <button type="button" (click)="pickSuggestion(suggestion)">
+                                {{ suggestion }}
+                            </button>
+                        </li>
+                        }
+                    </ul>
+                    }
+                </div>
+
+                <div class="field">
+                    <label for="amount">Serving size</label>
+                    <div class="serving-row">
+                        <input id="amount" class="pill amount" name="amount" type="number" min="1" placeholder="100"
+                            [(ngModel)]="amount" />
+                        <app-unit-select [(value)]="unit" />
+                        <button class="icon-btn" type="submit" aria-label="Add ingredient" [disabled]="!canAdd()">
+                            <img src="img/plus.png" alt="" />
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <section class="panel list">
+                <h2>List of your Ingredients</h2>
+                <ul class="items">
+                    @for (item of items(); track item.name) {
+                    <li class="item" [class.editing]="editingName() === item.name">
+                        @if (editingName() === item.name) {
+                        <input class="pill amount" type="number" min="1" aria-label="Amount"
+                            [(ngModel)]="draftAmount" />
+                        <app-unit-select [(value)]="draftUnit" />
+                        <span class="name">{{ item.name }}</span>
+                        <button class="icon-btn" type="button" aria-label="Save changes" [disabled]="!canSave()"
+                            (click)="saveEdit()">
+                            <img src="img/check.png" alt="" />
+                        </button>
+                        } @else {
+                        <span class="amount-label">{{ item | amountLabel }}</span>
+                        <span class="name">{{ item.name }}</span>
+                        <button class="icon-btn" type="button" aria-label="Edit ingredient" (click)="startEdit(item)">
+                            <img src="img/edit.png" alt="" />
+                        </button>
+                        }
+                        <button class="icon-btn" type="button" aria-label="Delete ingredient"
+                            (click)="remove(item.name)">
+                            <img src="img/trash.png" alt="" />
+                        </button>
+                    </li>
+                    }
+                </ul>
+            </section>
+        </div>
+
+        @if (items().length > 0) {
+        <a class="btn-next" routerLink="/preferences">Next step</a>
+        }
+    </div>
+</main>

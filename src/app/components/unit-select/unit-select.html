@@ -1,0 +1,21 @@
+<div class="select">
+  <button
+    class="trigger"
+    type="button"
+    aria-haspopup="listbox"
+    [attr.aria-expanded]="open()"
+    (click)="toggle()"
+  >
+    {{ value() }}<span class="caret" [class.up]="open()"></span>
+  </button>
+
+  @if (open()) {
+    <ul class="options" role="listbox">
+      @for (unit of units; track unit) {
+        <li role="option" [attr.aria-selected]="unit === value()">
+          <button type="button" (click)="select(unit)">{{ unit }}</button>
+        </li>
+      }
+    </ul>
+  }
+</div>
