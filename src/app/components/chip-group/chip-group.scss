@@ -1,0 +1,41 @@
+h3 {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 24px;
+  font: 500 20px 'Quicksand', sans-serif;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.chip {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 30px;
+  background: var(--cremy);
+  color: var(--middle-green);
+  font: 500 20px 'Quicksand', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+
+  &.selected {
+    background: var(--olive-green-20);
+    color: var(--dark-green);
+  }
+}
+
+small {
+  font: 500 14px 'Quicksand', sans-serif;
+}

@@ -1,0 +1,40 @@
+<header>
+  <app-logo variant="dark" />
+  <a class="back" routerLink="/generate-recipe">
+    <img src="img/arrow-left.png" alt="" />
+    Ingredients
+  </a>
+</header>
+
+<main>
+  <h1>Choose your preferences</h1>
+
+  <div class="steppers">
+    <app-stepper
+      question="How many portions you need?"
+      singular="Portion"
+      plural="Portions"
+      [min]="1"
+      [max]="12"
+      [(value)]="prefs.portions"
+    />
+    <app-stepper
+      question="How many are cooking?"
+      singular="Person"
+      plural="Persons"
+      [min]="1"
+      [max]="4"
+      [(value)]="prefs.helpers"
+    />
+  </div>
+
+  <section class="panel">
+    <app-chip-group heading="Cooking time:" icon="img/clock.png" [options]="timeOptions" [(value)]="prefs.time" />
+    <app-chip-group heading="Cuisine" icon="img/globe.png" [options]="cuisineOptions" [(value)]="prefs.cuisine" />
+    <app-chip-group heading="Diet preferences" icon="img/cutlery.png" [options]="dietOptions" [(value)]="prefs.diet" />
+  </section>
+
+  <button class="btn-generate" type="button" [disabled]="!prefs.isComplete()" (click)="generate()">
+    Generate a recipe
+  </button>
+</main>

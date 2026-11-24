@@ -1,0 +1,13 @@
+<div role="group" [attr.aria-label]="question()">
+  <h2>{{ question() }}</h2>
+  <div class="row">
+    <button type="button" aria-label="Decrease" [disabled]="value() <= min()" (click)="change(-1)">
+      <img src="img/minus.png" alt="" />
+    </button>
+    <span class="value">{{ value() }}</span>
+    <span>{{ unit() }}</span>
+    <button type="button" aria-label="Increase" [disabled]="value() >= max()" (click)="change(1)">
+      <img src="img/plus-square.png" alt="" />
+    </button>
+  </div>
+</div>
