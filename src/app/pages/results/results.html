@@ -1,0 +1,39 @@
+<header>
+  <app-logo variant="light" />
+</header>
+
+<main>
+  <section class="intro">
+    <div class="text">
+      <h1>The recipe results</h1>
+      <p>
+        We took what you have and let our AI do the thinking. Here are 3 easy recipes you can
+        make right now!
+      </p>
+      <ul class="chips">
+        @for (chip of chips(); track chip) {
+          <li class="chip">{{ chip }}</li>
+        }
+      </ul>
+    </div>
+    <img class="robot" src="img/robot-waiter.png" alt="Robot hand serving a dish under a cloche" />
+  </section>
+
+  <section class="cards" aria-label="Recipe suggestions">
+    @for (recipe of recipes(); track recipe.id; let i = $index) {
+      <article class="card">
+        <p class="label"><img src="img/cloche.png" alt="" />Recipe {{ i + 1 }}</p>
+        <h2>{{ recipe.title }}</h2>
+        <p class="time">
+          <app-icon name="clock" [size]="22" />Cooking time: {{ recipe.cookingTime }}min
+        </p>
+        <a class="view" [routerLink]="['/recipe-view', recipe.id]">View</a>
+      </article>
+    }
+  </section>
+
+  <a class="new" routerLink="/generate-recipe">
+    Generate new recipe
+    <img src="img/arrow.png" alt="" />
+  </a>
+</main>
