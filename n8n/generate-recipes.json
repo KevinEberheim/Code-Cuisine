@@ -1,0 +1,434 @@
+{
+  "name": "Code a Cuisine - Generate recipes",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-recipe",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "http://localhost:4200"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "a721e77e-9577-471e-8f85-6f04fc8faa43",
+      "name": "Receive recipe request",
+      "webhookId": "b9930f48-c3da-4c65-bf40-7311b887688a",
+      "notes": "Entry point from Angular"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body ?? {};\nconst UNITS = ['piece', 'ml', 'gram'];\nconst TIMES = ['quick', 'medium', 'complex'];\nconst CUISINES = ['german', 'italian', 'indian', 'japanese', 'gourmet', 'fusion'];\nconst DIETS = ['vegetarian', 'vegan', 'keto', 'none'];\nconst NAME = /^[\\p{L} -]{1,50}$/u;\nconst errors = [];\nconst inRange = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;\n\nconst list = Array.isArray(body.ingredients) ? body.ingredients : [];\nif (list.length < 1 || list.length > 30) errors.push('ingredients: 1 to 30 entries required');\n\nconst seen = new Set();\nlist.forEach((item, n) => {\n  const name = typeof item?.name === 'string' ? item.name.trim() : '';\n  if (!NAME.test(name) || !/\\p{L}/u.test(name)) errors.push(`ingredients[${n}].name invalid`);\n  if (seen.has(name.toLowerCase())) errors.push(`ingredients[${n}].name duplicate`);\n  seen.add(name.toLowerCase());\n  if (typeof item?.amount !== 'number' || !(item.amount > 0) || item.amount > 100000) {\n    errors.push(`ingredients[${n}].amount invalid`);\n  }\n  if (!UNITS.includes(item?.unit)) errors.push(`ingredients[${n}].unit invalid`);\n});\n\nif (!inRange(body.portions, 1, 12)) errors.push('portions: integer 1-12');\nif (!inRange(body.helpers, 1, 4)) errors.push('helpers: integer 1-4');\nif (!TIMES.includes(body.time)) errors.push('time invalid');\nif (!CUISINES.includes(body.cuisine)) errors.push('cuisine invalid');\nif (!DIETS.includes(body.diet)) errors.push('diet invalid');\n\nconst okLang = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(body.language ?? '');\nconst data = {\n  ingredients: list.map((i) => ({ name: String(i?.name ?? '').trim(), amount: i?.amount, unit: i?.unit })),\n  portions: body.portions,\n  helpers: body.helpers,\n  time: body.time,\n  cuisine: body.cuisine,\n  diet: body.diet,\n  language: okLang ? body.language : 'en',\n};\n\nreturn [{ json: { valid: errors.length === 0, errors, data } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        0
+      ],
+      "id": "908d7c8c-50f2-4e63-a2af-3a6eb0f8474e",
+      "name": "Validate input",
+      "notes": "Re-validates the Angular payload"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "0e3b4432-2567-42af-b247-3c342e415b93",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        368,
+        0
+      ],
+      "id": "1226e682-c014-426a-a288-63d1abb36537",
+      "name": "Is input valid?",
+      "notes": "Routes valid requests to Gemini and invalid ones to the error response."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'validation', details: $json.errors }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        528,
+        240
+      ],
+      "id": "2423cd16-2044-4670-9f83-88f995250f99",
+      "name": "Reject invalid input",
+      "notes": "Returns HTTP 400 with the list of validation errors to Angular."
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Validate input').first().json.data;\nconst out = $input.first().json;\nlet raw = out.content?.parts?.[0]?.text\n  ?? out.candidates?.[0]?.content?.parts?.[0]?.text\n  ?? out.text ?? out.output ?? out;\nif (typeof raw === 'string') raw = raw.replace(/```json|```/g, '').trim();\nconst parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\nconst recipes = parsed.recipes;\n\nif (!Array.isArray(recipes) || recipes.length !== 3) throw new Error('Gemini did not return exactly 3 recipes');\n\nconst wanted = input.ingredients.map((i) => i.name.toLowerCase());\nconst need = Math.ceil(wanted.length * 0.7);\nrecipes.forEach((r, n) => {\n  const used = (r.used_ingredients ?? []).map((i) => String(i.name).toLowerCase());\n  const hits = wanted.filter((w) => used.some((u) => u.includes(w) || w.includes(u))).length;\n  if (hits < need) throw new Error(`Recipe ${n + 1} uses too few ingredients`);\n  if ((r.extra_ingredients ?? []).length > 3) throw new Error(`Recipe ${n + 1} has too many extras`);\n  if (!r.title || !Array.isArray(r.steps) || !r.nutrition) throw new Error(`Recipe ${n + 1} incomplete`);\n});\n\nreturn recipes.map((r) => ({ json: { ...r, request: input } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        -96
+      ],
+      "id": "e9380e30-e3be-40a5-8b6a-e0a439ff8d87",
+      "name": "Parse and check Gemini output",
+      "notes": "Parses the JSON and checks recipe count, ingredient usage (70 percent), extra ingredients (max 3) and required fields."
+    },
+    {
+      "parameters": {
+        "jsCode": "const batchId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {\n  const r = (Math.random() * 16) | 0;\n  return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);\n});\nreturn $input.all().map(({ json: r }) => ({\n  json: {\n    batch_id: batchId,\n    title: r.title,\n    cooking_time_min: r.cooking_time_min,\n    time_category: r.request.time,\n    cuisine: r.request.cuisine,\n    diet: r.request.diet,\n    portions: r.request.portions,\n    helpers: r.request.helpers,\n    language: r.request.language,\n    used_ingredients: r.used_ingredients,\n    extra_ingredients: r.extra_ingredients,\n    steps: r.steps,\n    nutrition: r.nutrition,\n  },\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        -96
+      ],
+      "id": "461dc8f8-18c2-4c4f-87f7-2b5952d309f6",
+      "name": "Prepare database rows",
+      "notes": "Maps each recipe to a row of the recipes table and adds one shared batch id."
+    },
+    {
+      "parameters": {
+        "tableId": "recipes",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1712,
+        -96
+      ],
+      "id": "00849946-6b7d-4752-a31d-edf42acec239",
+      "name": "Save recipes",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q1irvftVe6VXzLSh",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Saves the 3 recipes in the Supabase table recipes."
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.6-flash",
+          "mode": "list",
+          "cachedResultName": "Gemini 3.6 Flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a cooking assistant. Create exactly 3 different recipes as JSON.\n\nAvailable ingredients (user input): {{ JSON.stringify($('Validate input').first().json.data.ingredients) }}\nPortions: {{ $('Validate input').first().json.data.portions }}\nCooking helpers: {{ $('Validate input').first().json.data.helpers }}\nTime category: {{ $('Validate input').first().json.data.time }} (quick = up to 20 min, medium = 20 to 45 min, complex = over 45 min)\nCuisine: {{ $('Validate input').first().json.data.cuisine }}\nDiet: {{ $('Validate input').first().json.data.diet }} (none = no restriction)\nLanguage of all texts: {{ $('Validate input').first().json.data.language }}\n\nRules:\n- Each recipe uses at least 70 percent of the available ingredients.\n- Each recipe has at most 3 extra ingredients (basic ones only), listed in extra_ingredients.\n- The 3 recipes differ in preparation method or flavor.\n- Respect the diet strictly. Do not use ingredients that violate it.\n- Never use more of an available ingredient than the user listed. Scale only extra ingredients to the portions.\n- Do not list salt, pepper or water as extra ingredients.\n- Units must be one of: piece, ml, gram.\n- Steps are chronological and beginner friendly. Use waiting times for other steps. Assign each step to a helper number from 1 to {{ $('Validate input').first().json.data.helpers }}. Steps that run at the same time list the other step orders in parallel_with.\n- Every helper gets at least one step, and the final steps may be shared.\n- The cooking time matches the time category.\n- Nutrition in kcal, protein_g, carbs_g, fat_g, per portion and for the whole recipe.\n- Titles are short and natural.\n\nReturn only JSON in this form, no text around it:\n{\"recipes\":[{\"title\":\"\",\"cooking_time_min\":0,\"used_ingredients\":[{\"name\":\"\",\"amount\":0,\"unit\":\"\"}],\"extra_ingredients\":[{\"name\":\"\",\"amount\":0,\"unit\":\"\"}],\"steps\":[{\"order\":1,\"title\":\"\",\"text\":\"\",\"helper\":1,\"parallel_with\":[]}],\"nutrition\":{\"per_portion\":{\"kcal\":0,\"protein_g\":0,\"carbs_g\":0,\"fat_g\":0},\"total\":{\"kcal\":0,\"protein_g\":0,\"carbs_g\":0,\"fat_g\":0}}}]}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "f011987f-cc87-48c5-b591-1eb6d6dab0fe",
+      "name": "Generate 3 recipes with Gemini",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PES3T4XObWw2sWtt",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "notes": "Asks Gemini for 3 different recipes as JSON, based on ingredients and preferences. Retries on temporary errors."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ batch_id: $('Prepare database rows').first().json.batch_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1936,
+        -96
+      ],
+      "id": "8ae662d7-92f9-493e-8e6d-fc8b0406d43f",
+      "name": "Return batch id",
+      "executeOnce": true,
+      "notes": "Sends the batch id to Angular, which loads the recipes from Supabase."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.first().json.headers ?? {};\nconst forwarded = String(headers['x-forwarded-for'] ?? '').split(',')[0].trim();\nconst ip = forwarded || String(headers['x-real-ip'] ?? '').trim() || 'unknown';\nconst valid = /^[0-9a-fA-F:.]{3,45}$/.test(ip);\nreturn [{ json: { ...$input.first().json, client_ip: valid ? ip : 'unknown' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        0
+      ],
+      "id": "63750581-1379-45af-a428-1715313c24e9",
+      "name": "Extract client IP",
+      "notes": "Reads the client IP from proxy headers (IPv4 and IPv6) and validates the format."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "767b7f5f-ca45-418c-a6c8-d8132355e34d",
+              "leftValue": "={{ $json.allowed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        704,
+        -80
+      ],
+      "id": "5e3080a6-7dfd-4043-9d0e-9664effb0b58",
+      "name": "Is quota available?",
+      "notes": "Routes requests with free quota to Gemini and all others to the 429 response."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'quota', reason: $json.reason }) }}",
+        "options": {
+          "responseCode": 429
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        928,
+        112
+      ],
+      "id": "c6cce021-fe26-4c84-9933-90645f5ce0a4",
+      "name": "Reject quota exceeded",
+      "notes": "Returns HTTP 429 so Angular can show a meaningful quota message."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://itxkrlannxehrnbryosd.supabase.co/rest/v1/rpc/consume_quota",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_ip\": \"{{ $('Extract client IP').first().json.client_ip }}\",\n  \"p_ip_limit\": 3,\n  \"p_total_limit\": 12\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        560,
+        -48
+      ],
+      "id": "d28592ab-b1da-4476-a6cc-4517b914e651",
+      "name": "Consume quota",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q1irvftVe6VXzLSh",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Checks and increases the daily quota per IP (3) and system wide (12) in one atomic step."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receive recipe request": {
+      "main": [
+        [
+          {
+            "node": "Extract client IP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate input": {
+      "main": [
+        [
+          {
+            "node": "Is input valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is input valid?": {
+      "main": [
+        [
+          {
+            "node": "Consume quota",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject invalid input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and check Gemini output": {
+      "main": [
+        [
+          {
+            "node": "Prepare database rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare database rows": {
+      "main": [
+        [
+          {
+            "node": "Save recipes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save recipes": {
+      "main": [
+        [
+          {
+            "node": "Return batch id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate 3 recipes with Gemini": {
+      "main": [
+        [
+          {
+            "node": "Parse and check Gemini output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return batch id": {
+      "main": [
+        []
+      ]
+    },
+    "Extract client IP": {
+      "main": [
+        [
+          {
+            "node": "Validate input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is quota available?": {
+      "main": [
+        [
+          {
+            "node": "Generate 3 recipes with Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject quota exceeded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consume quota": {
+      "main": [
+        [
+          {
+            "node": "Is quota available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "073dece7-e211-4d13-81c3-f32fbfc55336",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "32a728ff74b1ad7d0269d65cce568827b1140956b4ee1ee71d38adddf86c34db"
+  },
+  "nodeGroups": [],
+  "id": "BrombocWbj4byDvI",
+  "tags": []
+}
